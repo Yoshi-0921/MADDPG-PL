@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.autograd as autograd
+from torch.autograd import Variable
 import numpy as np
 
-from model import CentralizedCritic, Actor
+from models import CentralizedCritic, Actor
 
 
 class DDPGAgent:

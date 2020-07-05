@@ -2,7 +2,9 @@ import numpy as np
 import random
 from collections import deque
 import torch
-
+import multiagent.scenarios as scenarios
+from multiagent.environment import MultiAgentEnv
+from torch.utils.data.dataset import IterableDataset
 
 class MultiAgentReplayBuffer:
 
@@ -53,3 +55,29 @@ class MultiAgentReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
+
+class RLDataset(IterableDataset):
+    def __init__(self, buffer):
+        self.buffer = buffer
+
+    def __iter__(self, batch_size):
+        obs_batch, indiv_action_batch, indiv_reward_batch, next_obs_batch, \
+        global_state_batch, global_actions_batch, global_next_state_batch, \
+        done_batch = self.buffer.sample(batch_size)
+
+        for i in range(len(done_batch)):
+            yield obs_batch[i], indiv_action_batch[i], indiv_reward_batch[i], next_obs_batch[i], \
+        global_state_batch[i], global_actions_batch[i], global_next_state_batch[i], \
+        done_batch[i]
+
+def make_env(scenario_name, benchmark=False):
+    # load scenario from script
+    scenario = scenarios.load(scenario_name + ".py").Scenario()
+    # create world
+    world = scenario.make_world()
+    # create multiagent environment
+    if benchmark:
+        env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, scenario.benchmark_data)
+    else:
+        env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
+    return env
