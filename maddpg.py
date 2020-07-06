@@ -61,8 +61,7 @@ class MADDPG:
                     dones = [1 for _ in range(self.num_agents)]
                     self.replay_buffer.push(states, actions, rewards, next_states, dones)
                     episode_rewards.append(episode_reward)
-                    print("episode: {}  |  reward: {}  \n".format(episode, np.round(episode_reward,
-                                                                                    decimals=4)))
+                    print("episode: {}  |  reward: {}  \n".format(episode, np.round(episode_reward, decimals=4)))
                     break
                 else:
                     dones = [0 for _ in range(self.num_agents)]

@@ -14,7 +14,7 @@ from argparse import ArgumentParser
 from utils import RLDataset
 from torch.utils.data import DataLoader
 from torch import optim
-
+from torch import nn
 
 class MADDPG(pl.LightningModule):
     def __init__(self):
@@ -24,16 +24,45 @@ class MADDPG(pl.LightningModule):
         self.replay_buffer = MultiAgentReplayBuffer(self.num_agents, cfg.buffer_maxlen)
         self.agents = [DDPGAgent(self.env, i) for i in range(self.num_agents)]
         self.episode_rewards = list()
+        self.episode = 0
+        self.episode_reward = 0
         self.populate(cfg.warm_start_steps)
+        self.states = self.env.reset()
+        self.step = 0
+        self.reset()
 
     def populate(self, steps=1000):
+        states = self.env.reset()
         for i in range(steps):
-            self.self.agent.play_step(self.net, epsilon=1.0)
+            actions = self.get_actions(states)
+            next_states, rewards, dones, _ = self.env.step(actions)
+
+    def reset(self):
+        self.states = self.env.reset()
+        self.step = 0
+        self.episode_reward = 0
 
     def forward(self):
         pass
 
     def training_step(self, batch, batch_idx, optimizer_idx):
+
+        actions = self.get_actions(self.states)
+        next_states, rewards, dones, _ = self.env.step(actions)
+        self.episode_reward += np.mean(rewards)
+
+        if all(dones) or self.step == cfg.max_steps - 1:
+            dones = [1 for _ in range(self.num_agents)]
+            self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
+            self.episode_rewards.append(self.episode_reward)
+            print("episode: {}  |  reward: {}  \n".format(self.episode, np.round(self.episode_reward, decimals=4)))
+            self.reset()
+        else:
+            dones = [0 for _ in range(self.num_agents)]
+            self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
+            self.states = next_states
+
+        #Training phase
         obs_batch, indiv_action_batch, indiv_reward_batch, next_obs_batch, \
         global_state_batch, global_actions_batch, global_next_state_batch, \
         done_batch = batch
@@ -52,7 +81,9 @@ class MADDPG(pl.LightningModule):
             indiv_next_action = [agent.onehot_from_logits(indiv_next_action_j) for indiv_next_action_j in indiv_next_action]
             indiv_next_action = torch.stack(indiv_next_action)
             next_global_actions.append(indiv_next_action)
-            agent.target_update()
+            # Soft update of target network
+            if self.global_step % cfg.sync_rate == 0:
+                agent.target_update()
         next_global_actions = torch.cat([next_actions_i for next_actions_i in next_global_actions], 1)
 
         indiv_reward_batch_i = torch.FloatTensor(indiv_reward_batch_i)
@@ -68,7 +99,7 @@ class MADDPG(pl.LightningModule):
             next_Q = self.agent[agent_idx].critic_target.forward(global_next_state_batch, next_global_actions)
             estimated_Q = indiv_reward_batch_i + self.gamma * next_Q
 
-            critic_loss = self.MSELoss(curr_Q, estimated_Q.detach())
+            critic_loss = nn.MSELoss(curr_Q, estimated_Q.detach())
             torch.nn.utils.clip_grad_norm_(self.agent[agent_idx].critic.parameters(), 0.5)
 
             return {'loss': critic_loss}
@@ -118,7 +149,8 @@ if __name__ == '__main__':
     trainer = pl.Trainer.from_argparse_args(cfg,
                                             fast_dev_run=True,
                                             profiler=True,
-                                            logger=logger)
+                                            logger=logger,
+                                            max_steps=cfg.max_steps)
 
     maddpg = MADDPG()
     trainer.fit(maddpg)
