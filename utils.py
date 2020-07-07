@@ -57,13 +57,14 @@ class MultiAgentReplayBuffer:
         return len(self.buffer)
 
 class RLDataset(IterableDataset):
-    def __init__(self, buffer):
+    def __init__(self, buffer, batch_size):
         self.buffer = buffer
+        self.batch_size = batch_size
 
-    def __iter__(self, batch_size):
+    def __iter__(self):
         obs_batch, indiv_action_batch, indiv_reward_batch, next_obs_batch, \
         global_state_batch, global_actions_batch, global_next_state_batch, \
-        done_batch = self.buffer.sample(batch_size)
+        done_batch = self.buffer.sample(self.batch_size)
 
         for i in range(len(done_batch)):
             yield obs_batch[i], indiv_action_batch[i], indiv_reward_batch[i], next_obs_batch[i], \
