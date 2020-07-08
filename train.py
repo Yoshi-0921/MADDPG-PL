@@ -58,20 +58,20 @@ class MADDPG(pl.LightningModule):
         next_states, rewards, dones, _ = self.env.step(actions)
         self.episode_reward += np.mean(rewards)
 
-        self.env.render()
+        #self.env.render()
         
         if all(dones) or self.step == cfg.max_episode_len - 1:
             dones = [1 for _ in range(self.num_agents)]
             self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
             self.episode_rewards.append(self.episode_reward)
             print("episode: {}  |  reward: {}  \n".format(self.episode,
-                                                          np.round(self.episode_reward,
-                                                                   decimals=4)))
+                                                          np.round(self.episode_reward, decimals=4)))
             self.reset()
         else:
             dones = [0 for _ in range(self.num_agents)]
             self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
             self.states = next_states
+            self.step += 1
 
         # Training phase
         obs_batch, indiv_action_batch, indiv_reward_batch, next_obs_batch, \
@@ -135,17 +135,6 @@ class MADDPG(pl.LightningModule):
 
             return {'loss': policy_loss, 'log': {'train_policy_loss': policy_loss}}
 
-    """def training_step_end(self, outputs):
-        print('hi')
-        try:
-            train_loss = torch.Tensor([x['train_critic_loss'] for x in outputs]).mean()
-            return {'log': {'train_avg_critic_loss': train_loss}}
-
-        except:
-            pass
-            #train_loss = torch.Tensor([x['train_policy_loss'] for x in outputs]).mean()
-            #return {'log':{'train_avg_policy_loss': train_loss}}"""
-
     def loss_function(self, curr_Q, estimated_Q):
         criterion = nn.MSELoss()
         loss = criterion(curr_Q, estimated_Q)
@@ -175,10 +164,10 @@ class MADDPG(pl.LightningModule):
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     parser = pl.Trainer.add_argparse_args(ArgumentParser())
-    parser.add_argument('--batch_size', default=8, type=int)
+    parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
     #parser.add_argument('--max_episode', default=2000, type=int)
-    parser.add_argument('--max_episode_len', default=1000, type=int)
+    parser.add_argument('--max_episode_len', default=300, type=int)
     parser.add_argument('--warm_start_steps', default=1000, type=int)
     parser.add_argument('--actor_lr', default=1e-4, type=float)
     parser.add_argument('--critic_lr', default=1e-3, type=float)
@@ -194,7 +183,7 @@ if __name__ == '__main__':
         cfg,
         gpus = 1,
         #fast_dev_run=True,
-        max_epochs=1000,
+        max_epochs=10000,
         profiler=True,
         logger=logger)
         #max_steps=10)
