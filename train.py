@@ -122,7 +122,7 @@ class MADDPG(pl.LightningModule):
             critic_loss = self.loss_function(curr_Q, estimated_Q)
             torch.nn.utils.clip_grad_norm_(self.agents[agent_idx].critic.parameters(), 0.5)
 
-            return {'loss': critic_loss}
+            return {'loss': critic_loss, 'train_critic_loss': critic_loss}
 
         elif optimizer_idx % 2 == 1:
             policy_loss = -self.agents[agent_idx].critic(global_state_batch,
@@ -131,7 +131,16 @@ class MADDPG(pl.LightningModule):
             policy_loss += -(curr_pol_out ** 2).mean() * 1e-3
             torch.nn.utils.clip_grad_norm_(self.agents[agent_idx].critic.parameters(), 0.5)
 
-            return {'loss': policy_loss}
+            return {'loss': policy_loss, 'train_policy_loss': policy_loss}
+
+    def training_epoch_end(self, outputs):
+        try:
+            train_loss = torch.Tensor([x['train_critic_loss'] for x in outputs]).mean()
+            return {'log': {'train_avg_critic_loss': train_loss}}
+
+        except:
+            train_loss = torch.Tensor([x['train_policy_loss'] for x in outputs]).mean()
+            return {'log':{'train_avg_policy_loss': train_loss}}
 
     def loss_function(self, curr_Q, estimated_Q):
         criterion = nn.MSELoss()
@@ -164,8 +173,8 @@ if __name__ == '__main__':
     parser = pl.Trainer.add_argparse_args(ArgumentParser())
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
-    parser.add_argument('--max_episode', default=10, type=int)
-    parser.add_argument('--max_episode_len', default=10, type=int)
+    parser.add_argument('--max_episode', default=1000, type=int)
+    parser.add_argument('--max_episode_len', default=1000, type=int)
     parser.add_argument('--warm_start_steps', default=1000, type=int)
     parser.add_argument('--actor_lr', default=1e-4, type=float)
     parser.add_argument('--critic_lr', default=1e-3, type=float)
@@ -175,16 +184,16 @@ if __name__ == '__main__':
     cfg = parser.parse_args()
     logger = TensorBoardLogger(
         save_dir=os.getcwd(),
-        version=1,
         name='MADDPG_logs'
     )
     trainer = pl.Trainer.from_argparse_args(
         cfg,
         gpus = 1,
-        fast_dev_run=True,
+        #fast_dev_run=True,
+        max_epochs=100,
         profiler=True,
-        logger=logger,
-        max_steps=10)
+        logger=logger)
+        #max_steps=10)
 
     maddpg = MADDPG()
     trainer.fit(maddpg)
