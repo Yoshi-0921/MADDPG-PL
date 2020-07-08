@@ -18,12 +18,17 @@ class MultiAgentReplayBuffer:
         self.buffer.append(experience)
 
     def sample(self, batch_size):
-        obs_batch = [[] for _ in range(
+        """obs_batch = [[] for _ in range(
             self.num_agents)]  # [ [states of agent 1], ... ,[states of agent n] ]    ]
         indiv_action_batch = [[] for _ in range(
             self.num_agents)]  # [ [actions of agent 1], ... , [actions of agent n]]
         indiv_reward_batch = [[] for _ in range(self.num_agents)]
-        next_obs_batch = [[] for _ in range(self.num_agents)]
+        next_obs_batch = [[] for _ in range(self.num_agents)]"""
+
+        obs_batch = [[] for _ in range(batch_size)]
+        indiv_action_batch = [[] for _ in range(batch_size)]
+        indiv_reward_batch = [[] for _ in range(batch_size)]
+        next_obs_batch = [[] for _ in range(batch_size)]
 
         global_state_batch = []
         global_next_state_batch = []
@@ -32,7 +37,27 @@ class MultiAgentReplayBuffer:
 
         batch = random.sample(self.buffer, batch_size)
 
-        for experience in batch:
+        for batch_idx in range(batch_size):
+            state, action, reward, next_state, done = batch[batch_idx]
+            for i in range(self.num_agents):
+                obs_i = state[i]
+                action_i = action[i]
+                reward_i = reward[i]
+                next_obs_i = next_state[i]
+
+                obs_batch[batch_idx].append(obs_i)
+                indiv_action_batch[batch_idx].append(action_i)
+                indiv_reward_batch[batch_idx].append(reward_i)
+                next_obs_batch[batch_idx].append(next_obs_i)
+
+            global_state_batch.append(np.concatenate(state))
+            global_actions_batch.append(torch.cat(action))
+            global_next_state_batch.append(np.concatenate(next_state))
+            done_batch.append(done)
+
+        return obs_batch, indiv_action_batch, indiv_reward_batch, next_obs_batch, global_state_batch, global_actions_batch, global_next_state_batch, done_batch
+
+        """for experience in batch:
             state, action, reward, next_state, done = experience
 
             for i in range(self.num_agents):
@@ -49,14 +74,17 @@ class MultiAgentReplayBuffer:
             global_state_batch.append(np.concatenate(state))
             global_actions_batch.append(torch.cat(action))
             global_next_state_batch.append(np.concatenate(next_state))
-            done_batch.append(done)
+            done_batch.append(done)"""
 
-        return obs_batch, indiv_action_batch, indiv_reward_batch, next_obs_batch, global_state_batch, global_actions_batch, global_next_state_batch, done_batch
+        
 
     def __len__(self):
         return len(self.buffer)
 
 class RLDataset(IterableDataset):
+    """
+    Output shape: (batch_size, num_of_agent, -1)
+    """
     def __init__(self, buffer, batch_size):
         self.buffer = buffer
         self.batch_size = batch_size
@@ -66,7 +94,7 @@ class RLDataset(IterableDataset):
         global_state_batch, global_actions_batch, global_next_state_batch, \
         done_batch = self.buffer.sample(self.batch_size)
 
-        for i in range(len(done_batch)):
+        for i in range(self.batch_size):
             yield obs_batch[i], indiv_action_batch[i], indiv_reward_batch[i], next_obs_batch[i], \
         global_state_batch[i], global_actions_batch[i], global_next_state_batch[i], \
         done_batch[i]

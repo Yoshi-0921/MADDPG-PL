@@ -85,8 +85,10 @@ class MADDPG(pl.LightningModule):
         next_global_actions = list()
 
         for agent in self.agents:
-            next_obs_batch_i = torch.FloatTensor(next_obs_batch_i.float())
-            indiv_next_action = agent.actor.forward(next_obs_batch_i)
+            if self.on_gpu: next_obs_batch_i = torch.cuda.FloatTensor(next_obs_batch_i.float())
+            else: next_obs_batch_i = torch.FloatTensor(next_obs_batch_i.float())
+
+            indiv_next_action = agent.actor(next_obs_batch_i)
             indiv_next_action = [agent.onehot_from_logits(indiv_next_action_j) for
                                  indiv_next_action_j in indiv_next_action]
             indiv_next_action = torch.stack(indiv_next_action)
@@ -94,36 +96,48 @@ class MADDPG(pl.LightningModule):
             # Soft update of target network
             if self.global_step % cfg.sync_rate == 0:
                 agent.target_update()
-        next_global_actions = torch.cat([next_actions_i for next_actions_i in next_global_actions],
-                                        1)
+        next_global_actions = torch.cat([next_actions_i for next_actions_i in next_global_actions], 1)
 
-        indiv_reward_batch_i = torch.FloatTensor(indiv_reward_batch_i)
-        indiv_reward_batch_i = indiv_reward_batch_i.view(indiv_reward_batch_i.size(0), 1)
-        obs_batch_i = torch.FloatTensor(obs_batch_i.float())
-        global_state_batch = torch.FloatTensor(global_state_batch.float())
-        #global_actions_batch = torch.stack(global_actions_batch)
-        global_next_state_batch = torch.FloatTensor(indiv_reward_batch_i)
+        if self.on_gpu:
+            indiv_reward_batch_i = torch.cuda.FloatTensor(indiv_reward_batch_i.float())
+            indiv_reward_batch_i = indiv_reward_batch_i.view(indiv_reward_batch_i.size(0), 1)
+            obs_batch_i = torch.cuda.FloatTensor(obs_batch_i.float())
+            global_state_batch = torch.cuda.FloatTensor(global_state_batch.float())
+            #global_actions_batch = torch.stack(global_actions_batch)
+            global_next_state_batch = torch.cuda.FloatTensor(global_next_state_batch.float())
+        else:
+            indiv_reward_batch_i = torch.FloatTensor(indiv_reward_batch_i)
+            indiv_reward_batch_i = indiv_reward_batch_i.view(indiv_reward_batch_i.size(0), 1)
+            obs_batch_i = torch.FloatTensor(obs_batch_i.float())
+            global_state_batch = torch.FloatTensor(global_state_batch.float())
+            #global_actions_batch = torch.stack(global_actions_batch)
+            global_next_state_batch = torch.FloatTensor(global_next_state_batch.float())
 
         if optimizer_idx % 2 == 0:
             # update critic
-            curr_Q = self.agents[agent_idx].critic.forward(global_state_batch, global_actions_batch)
-            next_Q = self.agents[agent_idx].critic_target.forward(global_next_state_batch,
-                                                                 next_global_actions)
+            curr_Q = self.agents[agent_idx].critic(global_state_batch, global_actions_batch)
+            next_Q = self.agents[agent_idx].critic_target(global_next_state_batch, next_global_actions)
             estimated_Q = indiv_reward_batch_i + cfg.gamma * next_Q
 
-            critic_loss = nn.MSELoss(curr_Q, estimated_Q.detach())
+            critic_loss = self.loss_function(curr_Q, estimated_Q)
             torch.nn.utils.clip_grad_norm_(self.agents[agent_idx].critic.parameters(), 0.5)
 
             return {'loss': critic_loss}
 
         elif optimizer_idx % 2 == 1:
-            policy_loss = -self.agents[agent_idx].critic.forward(global_state_batch,
+            policy_loss = -self.agents[agent_idx].critic(global_state_batch,
                                                                 global_actions_batch).mean()
-            curr_pol_out = self.agents[agent_idx].actor.forward(obs_batch_i)
+            curr_pol_out = self.agents[agent_idx].actor(obs_batch_i)
             policy_loss += -(curr_pol_out ** 2).mean() * 1e-3
             torch.nn.utils.clip_grad_norm_(self.agents[agent_idx].critic.parameters(), 0.5)
 
             return {'loss': policy_loss}
+
+    def loss_function(self, curr_Q, estimated_Q):
+        criterion = nn.MSELoss()
+        loss = criterion(curr_Q, estimated_Q)
+
+        return loss
 
     def configure_optimizers(self):
         optim_list = list()
@@ -146,8 +160,9 @@ class MADDPG(pl.LightningModule):
 
 
 if __name__ == '__main__':
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     parser = pl.Trainer.add_argparse_args(ArgumentParser())
-    parser.add_argument('--batch_size', default=2, type=int)
+    parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
     parser.add_argument('--max_episode', default=10, type=int)
     parser.add_argument('--max_episode_len', default=10, type=int)
@@ -163,11 +178,13 @@ if __name__ == '__main__':
         version=1,
         name='MADDPG_logs'
     )
-    trainer = pl.Trainer.from_argparse_args(cfg,
-                                            fast_dev_run=True,
-                                            profiler=True,
-                                            logger=logger,
-                                            max_steps=10)
+    trainer = pl.Trainer.from_argparse_args(
+        cfg,
+        gpus = 1,
+        fast_dev_run=True,
+        profiler=True,
+        logger=logger,
+        max_steps=10)
 
     maddpg = MADDPG()
     trainer.fit(maddpg)
