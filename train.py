@@ -58,6 +58,8 @@ class MADDPG(pl.LightningModule):
         next_states, rewards, dones, _ = self.env.step(actions)
         self.episode_reward += np.mean(rewards)
 
+        self.env.render()
+        
         if all(dones) or self.step == cfg.max_episode_len - 1:
             dones = [1 for _ in range(self.num_agents)]
             self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
@@ -122,7 +124,7 @@ class MADDPG(pl.LightningModule):
             critic_loss = self.loss_function(curr_Q, estimated_Q)
             torch.nn.utils.clip_grad_norm_(self.agents[agent_idx].critic.parameters(), 0.5)
 
-            return {'loss': critic_loss, 'train_critic_loss': critic_loss}
+            return {'loss': critic_loss, 'log': {'train_critic_loss': critic_loss}}
 
         elif optimizer_idx % 2 == 1:
             policy_loss = -self.agents[agent_idx].critic(global_state_batch,
@@ -131,16 +133,18 @@ class MADDPG(pl.LightningModule):
             policy_loss += -(curr_pol_out ** 2).mean() * 1e-3
             torch.nn.utils.clip_grad_norm_(self.agents[agent_idx].critic.parameters(), 0.5)
 
-            return {'loss': policy_loss, 'train_policy_loss': policy_loss}
+            return {'loss': policy_loss, 'log': {'train_policy_loss': policy_loss}}
 
-    def training_epoch_end(self, outputs):
+    """def training_step_end(self, outputs):
+        print('hi')
         try:
             train_loss = torch.Tensor([x['train_critic_loss'] for x in outputs]).mean()
             return {'log': {'train_avg_critic_loss': train_loss}}
 
         except:
-            train_loss = torch.Tensor([x['train_policy_loss'] for x in outputs]).mean()
-            return {'log':{'train_avg_policy_loss': train_loss}}
+            pass
+            #train_loss = torch.Tensor([x['train_policy_loss'] for x in outputs]).mean()
+            #return {'log':{'train_avg_policy_loss': train_loss}}"""
 
     def loss_function(self, curr_Q, estimated_Q):
         criterion = nn.MSELoss()
@@ -173,7 +177,7 @@ if __name__ == '__main__':
     parser = pl.Trainer.add_argparse_args(ArgumentParser())
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
-    parser.add_argument('--max_episode', default=1000, type=int)
+    #parser.add_argument('--max_episode', default=2000, type=int)
     parser.add_argument('--max_episode_len', default=1000, type=int)
     parser.add_argument('--warm_start_steps', default=1000, type=int)
     parser.add_argument('--actor_lr', default=1e-4, type=float)
@@ -190,7 +194,7 @@ if __name__ == '__main__':
         cfg,
         gpus = 1,
         #fast_dev_run=True,
-        max_epochs=100,
+        max_epochs=1000,
         profiler=True,
         logger=logger)
         #max_steps=10)
