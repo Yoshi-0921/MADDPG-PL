@@ -36,7 +36,7 @@ class MADDPG(pl.LightningModule):
         self.step = 0
         self.reset()
 
-    def populate(self, steps=1000):
+    def populate(self, steps=10000):
         states = self.env.reset()
         for i in range(steps):
             actions = self.get_actions(states)
@@ -64,8 +64,10 @@ class MADDPG(pl.LightningModule):
             dones = [1 for _ in range(self.num_agents)]
             self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
             self.episode_rewards.append(self.episode_reward)
-            print("episode: {}  |  reward: {}  \n".format(self.episode,
-                                                          np.round(self.episode_reward, decimals=4)))
+            print()
+            print(f"episode: {self.episode}  |  step:  {self.step}|  reward: {np.round(self.episode_reward, decimals=4)}  \n")
+            self.logger.experiment.add_scalar('episode_reward', self.episode_reward, self.episode)
+            self.episode += 1
             self.reset()
         else:
             dones = [0 for _ in range(self.num_agents)]
@@ -164,15 +166,15 @@ class MADDPG(pl.LightningModule):
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     parser = pl.Trainer.add_argparse_args(ArgumentParser())
-    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--batch_size', default=512, type=int)
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
     #parser.add_argument('--max_episode', default=2000, type=int)
-    parser.add_argument('--max_episode_len', default=300, type=int)
+    parser.add_argument('--max_episode_len', default=200, type=int)
     parser.add_argument('--warm_start_steps', default=1000, type=int)
     parser.add_argument('--actor_lr', default=1e-4, type=float)
     parser.add_argument('--critic_lr', default=1e-3, type=float)
     parser.add_argument('--gamma', default=0.99, type=float)
-    parser.add_argument('--sync_rate', default=1, type=int)
+    parser.add_argument('--sync_rate', default=16, type=int)
 
     cfg = parser.parse_args()
     logger = TensorBoardLogger(
@@ -183,7 +185,7 @@ if __name__ == '__main__':
         cfg,
         gpus = 1,
         #fast_dev_run=True,
-        max_epochs=10000,
+        max_epochs=60000,
         profiler=True,
         logger=logger)
         #max_steps=10)
