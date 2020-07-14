@@ -1,21 +1,24 @@
 from multiagent.environment import MultiAgentEnv
 import multiagent.scenarios as scenarios
-import torch
-import numpy as np
-import os
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
 
 from agent import DDPGAgent
 from maddpg import MADDPG
 from utils import MultiAgentReplayBuffer
 from utils import make_env
-from argparse import ArgumentParser
 from utils import RLDataset
+
+import numpy as np
+import os
+import matplotlib.pyplot as plt
+from argparse import ArgumentParser
+
+import torch
 from torch.utils.data import DataLoader
 from torch import optim
 from torch import nn
-
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 class MADDPG(pl.LightningModule):
     def __init__(self):
@@ -35,6 +38,7 @@ class MADDPG(pl.LightningModule):
         self.states = self.env.reset()
         self.step = 0
         self.reset()
+        self.frames = list()
 
     def populate(self, steps=10000):
         states = self.env.reset()
@@ -53,19 +57,17 @@ class MADDPG(pl.LightningModule):
         pass
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-
         actions = self.get_actions(self.states)
         next_states, rewards, dones, _ = self.env.step(actions)
         self.episode_reward += np.mean(rewards)
 
-        #self.env.render()
-        
         if all(dones) or self.step == cfg.max_episode_len - 1:
+            display_frames_as_gif(self.frames)
             dones = [1 for _ in range(self.num_agents)]
             self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
             self.episode_rewards.append(self.episode_reward)
             print()
-            print(f"episode: {self.episode}  |  step:  {self.step}|  reward: {np.round(self.episode_reward, decimals=4)}  \n")
+            print(f"global_step: {self.global_step}  |  episode: {self.episode}  |  step: {self.step}|  reward: {np.round(self.episode_reward, decimals=4)}  \n")
             self.logger.experiment.add_scalar('episode_reward', self.episode_reward, self.episode)
             self.episode += 1
             self.reset()
@@ -166,7 +168,7 @@ class MADDPG(pl.LightningModule):
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     parser = pl.Trainer.add_argparse_args(ArgumentParser())
-    parser.add_argument('--batch_size', default=512, type=int)
+    parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
     #parser.add_argument('--max_episode', default=2000, type=int)
     parser.add_argument('--max_episode_len', default=200, type=int)
@@ -181,13 +183,21 @@ if __name__ == '__main__':
         save_dir=os.getcwd(),
         name='MADDPG_logs'
     )
+    checkpoint_callback = ModelCheckpoint(
+    filepath=os.path.join(os.getcwd(), 'saved_checkpoints/'),
+    save_top_k=3,
+    verbose=False,
+    monitor="loss",
+    save_weights_only=True,
+    )
     trainer = pl.Trainer.from_argparse_args(
         cfg,
         gpus = 1,
         #fast_dev_run=True,
-        max_epochs=60000,
+        max_epochs=1,
         profiler=True,
-        logger=logger)
+        logger=logger,
+        checkpoint_callback=checkpoint_callback)
         #max_steps=10)
 
     maddpg = MADDPG()
