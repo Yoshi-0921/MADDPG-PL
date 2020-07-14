@@ -21,7 +21,7 @@ class DDPGAgent:
         self.device = "cpu"
         self.use_cuda = torch.cuda.is_available()
         if self.use_cuda:
-            self.device = "cuda"
+            self.device = "cuda:0"
 
         self.obs_dim = self.env.observation_space[agent_id].shape[0]
         self.action_dim = self.env.action_space[agent_id].n

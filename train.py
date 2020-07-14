@@ -38,7 +38,8 @@ class MADDPG(pl.LightningModule):
         self.states = self.env.reset()
         self.step = 0
         self.reset()
-        self.frames = list()
+        if not os.path.exists(os.path.join(os.getcwd(), 'saved_weights')):
+                os.mkdir(os.path.join(os.getcwd(), 'saved_weights'))
 
     def populate(self, steps=10000):
         states = self.env.reset()
@@ -57,12 +58,14 @@ class MADDPG(pl.LightningModule):
         pass
 
     def training_step(self, batch, batch_idx, optimizer_idx):
+        if self.current_epoch == 100:
+            torch.save(self.agents[0].actor.state_dict(), './saved_weights/actor_100.weights')
+            torch.save(self.agents[0].critic.state_dict(), './saved_weights/critic_100.weights')
         actions = self.get_actions(self.states)
         next_states, rewards, dones, _ = self.env.step(actions)
         self.episode_reward += np.mean(rewards)
 
         if all(dones) or self.step == cfg.max_episode_len - 1:
-            display_frames_as_gif(self.frames)
             dones = [1 for _ in range(self.num_agents)]
             self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
             self.episode_rewards.append(self.episode_reward)
@@ -168,7 +171,7 @@ class MADDPG(pl.LightningModule):
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     parser = pl.Trainer.add_argparse_args(ArgumentParser())
-    parser.add_argument('--batch_size', default=1, type=int)
+    parser.add_argument('--batch_size', default=512, type=int)
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
     #parser.add_argument('--max_episode', default=2000, type=int)
     parser.add_argument('--max_episode_len', default=200, type=int)
@@ -177,6 +180,7 @@ if __name__ == '__main__':
     parser.add_argument('--critic_lr', default=1e-3, type=float)
     parser.add_argument('--gamma', default=0.99, type=float)
     parser.add_argument('--sync_rate', default=16, type=int)
+    parser.add_argument('--loading_weights', default=True)
 
     cfg = parser.parse_args()
     logger = TensorBoardLogger(
@@ -194,10 +198,10 @@ if __name__ == '__main__':
         cfg,
         gpus = 1,
         #fast_dev_run=True,
-        max_epochs=1,
+        max_epochs=101,
         profiler=True,
-        logger=logger,
-        checkpoint_callback=checkpoint_callback)
+        logger=logger)
+        #checkpoint_callback=checkpoint_callback)
         #max_steps=10)
 
     maddpg = MADDPG()
