@@ -6,8 +6,7 @@ import multiagent.scenarios as scenarios
 from multiagent.environment import MultiAgentEnv
 from torch.utils.data.dataset import IterableDataset
 
-class MultiAgentReplayBuffer:
-
+class MultiAgentReplayBuffer():
     def __init__(self, num_agents, max_size):
         self.max_size = max_size
         self.num_agents = num_agents
@@ -75,8 +74,6 @@ class MultiAgentReplayBuffer:
             global_actions_batch.append(torch.cat(action))
             global_next_state_batch.append(np.concatenate(next_state))
             done_batch.append(done)"""
-
-        
 
     def __len__(self):
         return len(self.buffer)
