@@ -36,12 +36,11 @@ class MADDPG(pl.LightningModule):
         self.episode_reward = 0
         self.populate(cfg.warm_start_steps)
         self.states = self.env.reset()
-        self.step = 0
         self.reset()
         if not os.path.exists(os.path.join(os.getcwd(), 'saved_weights')):
                 os.mkdir(os.path.join(os.getcwd(), 'saved_weights'))
 
-    def populate(self, steps=10000):
+    def populate(self, steps=1000):
         states = self.env.reset()
         for i in range(steps):
             actions = self.get_actions(states)
@@ -58,27 +57,35 @@ class MADDPG(pl.LightningModule):
         pass
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        if self.current_epoch == 100:
-            torch.save(self.agents[0].actor.state_dict(), './saved_weights/actor_100.weights')
-            torch.save(self.agents[0].critic.state_dict(), './saved_weights/critic_100.weights')
-        actions = self.get_actions(self.states)
-        next_states, rewards, dones, _ = self.env.step(actions)
-        self.episode_reward += np.mean(rewards)
+        # Execution phase
+        if optimizer_idx == 0:
+            if self.current_epoch == 3000:
+                torch.save(self.agents[0].actor.state_dict(), './saved_weights/actor_3000.weights')
+                torch.save(self.agents[0].critic.state_dict(), './saved_weights/critic_3000.weights')
+            elif self.current_epoch == 10000:
+                torch.save(self.agents[0].actor.state_dict(), './saved_weights/actor_10000.weights')
+                torch.save(self.agents[0].critic.state_dict(), './saved_weights/critic_10000.weights')
+            elif self.current_epoch == 30000:
+                torch.save(self.agents[0].actor.state_dict(), './saved_weights/actor_30000.weights')
+                torch.save(self.agents[0].critic.state_dict(), './saved_weights/critic_30000.weights')
+            actions = self.get_actions(self.states)
+            next_states, rewards, dones, _ = self.env.step(actions)
+            self.episode_reward += np.mean(rewards)
 
-        if all(dones) or self.step == cfg.max_episode_len - 1:
-            dones = [1 for _ in range(self.num_agents)]
-            self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
-            self.episode_rewards.append(self.episode_reward)
-            print()
-            print(f"global_step: {self.global_step}  |  episode: {self.episode}  |  step: {self.step}|  reward: {np.round(self.episode_reward, decimals=4)}  \n")
-            self.logger.experiment.add_scalar('episode_reward', self.episode_reward, self.episode)
-            self.episode += 1
-            self.reset()
-        else:
-            dones = [0 for _ in range(self.num_agents)]
-            self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
-            self.states = next_states
-            self.step += 1
+            if all(dones) or self.step == cfg.max_episode_len - 1:
+                dones = [1 for _ in range(self.num_agents)]
+                self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
+                self.episode_rewards.append(self.episode_reward)
+                print()
+                print(f"global_step: {self.global_step}  |  episode: {self.episode}  |  step: {self.step}|  reward: {np.round(self.episode_reward, decimals=4)}  \n")
+                self.logger.experiment.add_scalar('episode_reward', self.episode_reward, self.episode)
+                self.episode += 1
+                self.reset()
+            else:
+                dones = [0 for _ in range(self.num_agents)]
+                self.replay_buffer.push(self.states, actions, rewards, next_states, dones)
+                self.states = next_states
+                self.step += 1
 
         # Training phase
         obs_batch, indiv_action_batch, indiv_reward_batch, next_obs_batch, \
@@ -157,7 +164,7 @@ class MADDPG(pl.LightningModule):
 
     def train_dataloader(self):
         dataset = RLDataset(self.replay_buffer, cfg.batch_size)
-        dataloader = DataLoader(dataset=dataset, batch_size=cfg.batch_size)
+        dataloader = DataLoader(dataset=dataset, batch_size=cfg.batch_size, num_workers=0)
         return dataloader
 
     def get_actions(self, states):
@@ -175,11 +182,11 @@ if __name__ == '__main__':
     parser.add_argument('--buffer_maxlen', default=1000000, type=int)
     #parser.add_argument('--max_episode', default=2000, type=int)
     parser.add_argument('--max_episode_len', default=200, type=int)
-    parser.add_argument('--warm_start_steps', default=1000, type=int)
+    parser.add_argument('--warm_start_steps', default=10000, type=int)
     parser.add_argument('--actor_lr', default=1e-4, type=float)
     parser.add_argument('--critic_lr', default=1e-3, type=float)
     parser.add_argument('--gamma', default=0.99, type=float)
-    parser.add_argument('--sync_rate', default=16, type=int)
+    parser.add_argument('--sync_rate', default=8, type=int)
     parser.add_argument('--loading_weights', default=True)
 
     cfg = parser.parse_args()
@@ -198,7 +205,7 @@ if __name__ == '__main__':
         cfg,
         gpus = 1,
         #fast_dev_run=True,
-        max_epochs=101,
+        max_epochs=30001,
         profiler=True,
         logger=logger)
         #checkpoint_callback=checkpoint_callback)
