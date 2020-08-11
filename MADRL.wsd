@@ -1,0 +1,45 @@
+@startuml
+title multi-agent deep reinforcement learning
+
+class Agent{
+    agent_id: int
+    pos: float
+    velocity: float
+    get_action()
+    target_update()
+}
+class Actor{
+    fc1: obs_dim->64
+    fc2: 64->64
+    fc3: 64->action_dim
+}
+class Critic{
+    fc1: obs_dim->64
+    fc2: 64+action_dim->64
+    fc3: 64->64
+    fc4: 64->1
+}
+class Environment{
+    step()
+    train()
+    reset()
+}
+class Event{
+    pos: float
+    
+}
+class ReplayBuffer{
+    max_size: int
+    push()
+    sample()
+}
+
+
+Agent "1"*--"2" Actor
+Agent "1"*--"2" Critic
+Agent - ReplayBuffer
+
+Environment "1"*--"*" Agent
+Environment "1"*-"*" Event
+Environment "1"*-"1" ReplayBuffer
+@enduml

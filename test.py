@@ -1,26 +1,23 @@
-from multiagent.environment import MultiAgentEnv
-import multiagent.scenarios as scenarios
-
-from agent import DDPGAgent
-from maddpg import MADDPG
-from utils import MultiAgentReplayBuffer
-from utils import make_env
-from utils import RLDataset
-
-import numpy as np
 import os
-import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
-import torch
-from torch.utils.data import DataLoader
-from torch import optim
-from torch import nn
+import matplotlib.pyplot as plt
+import numpy as np
 import pytorch_lightning as pl
+import torch
+from torch import nn, optim
+from torch.utils.data import DataLoader
+
+import multiagent.scenarios as scenarios
+from agent import DDPGAgent
+from maddpg import MADDPG
+from multiagent.environment import MultiAgentEnv
+from utils import MultiAgentReplayBuffer, RLDataset, make_env
+
 
 class MADDPG:
     def __init__(self):
-        self.env = make_env(scenario_name='simple_spread')
+        self.env = make_env(scenario_name='scenarios/new_env')#'simple_spread')
         self.num_agents = self.env.n
         self.agents = [DDPGAgent(self.env,
                                  agent_id,
@@ -28,8 +25,9 @@ class MADDPG:
                                  critic_lr=0.0,
                                  gamma=1.0) for agent_id in range(self.num_agents)]
         for agent in self.agents:
-            agent.actor.load_state_dict(torch.load('./saved_weights/actor_3000.weights', map_location=torch.device('cpu')))
-            agent.critic.load_state_dict(torch.load('./saved_weights/critic_3000.weights', map_location=torch.device('cpu')))
+            #agent.actor.load_state_dict(torch.load('./saved_weights/actor_3000.weights', map_location=torch.device('cpu')))
+            #agent.critic.load_state_dict(torch.load('./saved_weights/critic_3000.weights', map_location=torch.device('cpu')))
+            pass
         self.reset()
 
     def reset(self):

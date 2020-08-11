@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import torch
+import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.autograd as autograd
 
 
 class CentralizedCritic(nn.Module):
@@ -15,10 +15,10 @@ class CentralizedCritic(nn.Module):
         self.obs_dim = obs_dim
         self.action_dim = action_dim
 
-        self.linear1 = nn.Linear(self.obs_dim, 1024)
-        self.linear2 = nn.Linear(1024 + self.action_dim, 512)
-        self.linear3 = nn.Linear(512, 300)
-        self.linear4 = nn.Linear(300, 1)
+        self.linear1 = nn.Linear(self.obs_dim, 64)
+        self.linear2 = nn.Linear(64 + self.action_dim, 64)
+        self.linear3 = nn.Linear(64, 64)
+        self.linear4 = nn.Linear(64, 1)
 
     def forward(self, x, a):
         x = F.relu(self.linear1(x))
@@ -37,9 +37,9 @@ class Actor(nn.Module):
         self.obs_dim = obs_dim
         self.action_dim = action_dim
 
-        self.linear1 = nn.Linear(self.obs_dim, 512)
-        self.linear2 = nn.Linear(512, 128)
-        self.linear3 = nn.Linear(128, self.action_dim)
+        self.linear1 = nn.Linear(self.obs_dim, 64)
+        self.linear2 = nn.Linear(64, 64)
+        self.linear3 = nn.Linear(64, self.action_dim)
 
     def forward(self, obs):
         x = F.relu(self.linear1(obs))

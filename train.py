@@ -1,24 +1,21 @@
-from multiagent.environment import MultiAgentEnv
-import multiagent.scenarios as scenarios
-
-from agent import DDPGAgent
-from maddpg import MADDPG
-from utils import MultiAgentReplayBuffer
-from utils import make_env
-from utils import RLDataset
-
-import numpy as np
 import os
-import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
-import torch
-from torch.utils.data import DataLoader
-from torch import optim
-from torch import nn
+import matplotlib.pyplot as plt
+import numpy as np
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
+import torch
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import TensorBoardLogger
+from torch import nn, optim
+from torch.utils.data import DataLoader
+
+import multiagent.scenarios as scenarios
+from agent import DDPGAgent
+from maddpg import MADDPG
+from multiagent.environment import MultiAgentEnv
+from utils import MultiAgentReplayBuffer, RLDataset, make_env
+
 
 class MADDPG(pl.LightningModule):
     def __init__(self):

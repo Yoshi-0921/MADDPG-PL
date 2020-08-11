@@ -1,10 +1,15 @@
-import numpy as np
+import imp
+import os.path as osp
 import random
 from collections import deque
+
+import numpy as np
 import torch
+from torch.utils.data.dataset import IterableDataset
+
 import multiagent.scenarios as scenarios
 from multiagent.environment import MultiAgentEnv
-from torch.utils.data.dataset import IterableDataset
+
 
 class MultiAgentReplayBuffer():
     def __init__(self, num_agents, max_size):
@@ -97,8 +102,15 @@ class RLDataset(IterableDataset):
         done_batch[i]
 
 def make_env(scenario_name, benchmark=False):
+    scenario_names = ["simple", "simple_adversary", "simplecrypto", "simple_push", "simple_reference",
+                      "simple_speaker_listener", "simple_spread", "simple_tag", "simple_world_comm"]
+    def load(name):
+        pathname = osp.join(osp.dirname(__file__), name)
+        return imp.load_source('', pathname)
+
     # load scenario from script
-    scenario = scenarios.load(scenario_name + ".py").Scenario()
+    if scenario_name in scenario_names: scenario = scenarios.load(scenario_name + ".py").Scenario()
+    else: scenario = load(scenario_name + ".py").Scenario()
     # create world
     world = scenario.make_world()
     # create multiagent environment
